@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小T送达记 · A版 像素俯视</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'PingFang SC', -apple-system, sans-serif;
+    background: linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: hidden;
+  }
+  .game-container {
+    position: relative;
+    width: 960px;
+    max-width: 100%;
+    background: #0f1224;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5), inset 0 0 0 2px #2a2f55;
+    overflow: hidden;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    background: linear-gradient(90deg, #1c2046, #28306b);
+    border-bottom: 2px solid #2a2f55;
+  }
+  .title { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+  .title .sub { font-size: 12px; opacity: .6; margin-left: 8px; font-weight: 400; }
+  .stats { display: flex; gap: 16px; font-size: 13px; }
+  .stat { background: rgba(255,255,255,.06); padding: 6px 12px; border-radius: 20px; }
+  .stat b { color: #ffd166; }
+
+  .canvas-wrap {
+    position: relative;
+    background: #0a0d1f;
+    height: 540px;
+  }
+  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+  /* 罗盘 */
+  .compass {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 110px; height: 110px;
+    background: radial-gradient(circle, #2a2f55 0%, #14172e 80%);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.1), 0 8px 24px rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .compass.shake { animation: shake .4s; }
+  .compass.red { box-shadow: 0 0 0 3px #ff4d6d, 0 0 30px #ff4d6d; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .compass-marks {
+    position: absolute; inset: 8px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, transparent 60%, rgba(255,255,255,.05) 61%);
+  }
+  .compass-marks::before, .compass-marks::after {
+    content: ''; position: absolute; background: rgba(255,255,255,.2);
+  }
+  .compass-marks::before { left: 50%; top: 4px; bottom: 4px; width: 1px; transform: translateX(-50%); }
+  .compass-marks::after { top: 50%; left: 4px; right: 4px; height: 1px; transform: translateY(-50%); }
+  .compass-letter {
+    position: absolute; font-size: 10px; font-weight: 700; opacity: .7;
+  }
+  .c-n { top: 6px; left: 50%; transform: translateX(-50%); color: #ff4d6d; }
+  .c-s { bottom: 6px; left: 50%; transform: translateX(-50%); }
+  .c-e { right: 8px; top: 50%; transform: translateY(-50%); }
+  .c-w { left: 8px; top: 50%; transform: translateY(-50%); }
+  .needle {
+    width: 4px; height: 70%;
+    background: linear-gradient(to bottom, #ff4d6d 0%, #ff4d6d 50%, #fff 50%, #fff 100%);
+    border-radius: 2px;
+    transform-origin: 50% 50%;
+    transition: transform .5s cubic-bezier(.4,2,.5,1);
+    box-shadow: 0 0 8px rgba(255,77,109,.5);
+  }
+  .compass-label {
+    position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; opacity: .8; white-space: nowrap;
+  }
+
+  /* 进度条（缩略图） */
+  .minimap {
+    position: absolute;
+    top: 16px; left: 16px;
+    width: 220px; padding: 10px 12px;
+    background: rgba(15,18,36,.85);
+    border: 1px solid #2a2f55;
+    border-radius: 10px;
+    backdrop-filter: blur(6px);
+  }
+  .minimap-title { font-size: 11px; opacity: .6; margin-bottom: 6px; }
+  .progress-track {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .pnode {
+    flex: 1; height: 6px; background: #2a2f55; border-radius: 3px; position: relative;
+  }
+  .pnode.done { background: #06d6a0; }
+  .pnode.active { background: #ffd166; box-shadow: 0 0 8px #ffd166; }
+  .progress-text { font-size: 10px; opacity: .6; margin-top: 6px; }
+
+  /* 选择面板 */
+  .choice-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(180deg, rgba(15,18,36,0) 0%, #0f1224 30%);
+    padding: 30px 24px 20px;
+    transform: translateY(100%);
+    transition: transform .4s cubic-bezier(.4,1.4,.5,1);
+  }
+  .choice-panel.show { transform: translateY(0); }
+  .choice-question {
+    font-size: 16px; margin-bottom: 12px;
+    text-align: center;
+  }
+  .choice-question .where { color: #ffd166; font-weight: 700; }
+  .choice-buttons {
+    display: flex; gap: 12px; justify-content: center;
+  }
+  .choice-btn {
+    flex: 1; max-width: 200px;
+    padding: 14px 18px;
+    background: linear-gradient(180deg, #3a4180, #28306b);
+    border: 1px solid #4a55a6;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .choice-btn:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(180deg, #4a55a6, #3a4180);
+    box-shadow: 0 6px 16px rgba(74,85,166,.4);
+  }
+  .choice-btn .arrow { font-size: 20px; }
+  .choice-btn .desc { font-size: 11px; opacity: .7; font-weight: 400; }
+
+  /* 弹窗（迷路/通关） */
+  .modal {
+    position: absolute; inset: 0;
+    background: rgba(10,13,31,.85);
+    display: none;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+    z-index: 10;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #1c2046;
+    border: 2px solid #4a55a6;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    animation: pop .3s cubic-bezier(.4,1.6,.5,1);
+  }
+  @keyframes pop {
+    from { transform: scale(.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .modal-illust { width: 140px; height: 140px; margin: 0 auto 16px; }
+  .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .modal-text { font-size: 14px; opacity: .8; margin-bottom: 20px; line-height: 1.6; }
+  .modal-btn {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #ffd166, #ff9f1c);
+    border: none; border-radius: 24px;
+    color: #1a1d2e;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .modal-btn:hover { transform: translateY(-2px); }
+
+  /* 路障 toast */
+  .toast {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,77,109,.95);
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(255,77,109,.4);
+    pointer-events: none;
+    opacity: 0;
+    transition: all .3s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, -60%); }
+
+  .footer-tip {
+    text-align: center;
+    padding: 10px;
+    font-size: 12px;
+    opacity: .5;
+    background: #0a0d1f;
+  }
+</style>
+</head>
+<body>
+<div class="game-container">
+  <div class="topbar">
+    <div class="title">🚗 小T送达记 <span class="sub">从腾讯北京总部 → 亚洲金融大厦</span></div>
+    <div class="stats">
+      <div class="stat">关卡 <b id="stage">1/7</b></div>
+      <div class="stat">里程 <b id="distance">0.0</b> km</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <!-- 缩略地图 -->
+    <div class="minimap">
+      <div class="minimap-title">🗺️ 路线进度</div>
+      <div class="progress-track" id="progress"></div>
+      <div class="progress-text" id="progressText">出发：腾讯北京总部</div>
+    </div>
+
+    <!-- 智能罗盘 -->
+    <div class="compass" id="compass">
+      <div class="compass-marks">
+        <span class="compass-letter c-n">N</span>
+        <span class="compass-letter c-s">S</span>
+        <span class="compass-letter c-e">E</span>
+        <span class="compass-letter c-w">W</span>
+      </div>
+      <div class="needle" id="needle"></div>
+      <div class="compass-label">智能罗盘</div>
+    </div>
+
+    <!-- 路障提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 选择面板 -->
+    <div class="choice-panel" id="choicePanel">
+      <div class="choice-question" id="choiceQ"></div>
+      <div class="choice-buttons" id="choiceBtns"></div>
+    </div>
+
+    <!-- 通关/失败弹窗 -->
+    <div class="modal" id="modal">
+      <div class="modal-card" id="modalCard"></div>
+    </div>
+  </div>
+
+  <div class="footer-tip">💡 看好罗盘指针方向 · 选错会让小L哭哭哦</div>
+</div>
+
+<script>
+/* =========== 路线数据：基于真实地图最佳路线 23min 16km =========== */
+const ROUTE = [
+  {
+    name: '腾讯北京总部',
+    pos: { x: 100, y: 110 },
+    obstacle: '出发！系好安全带',
+    question: '准备出发，从西北旺东路往哪走？',
+    options: [
+      { dir: 'S', label: '南下接五环', desc: '上 G7 高速', correct: true },
+      { dir: 'E', label: '直接东行',   desc: '小路绕远',  correct: false },
+      { dir: 'N', label: '北上',       desc: '反方向了…',  correct: false }
+    ]
+  },
+  {
+    name: '上五环路口',
+    pos: { x: 220, y: 240 },
+    obstacle: '🚧 前方拥堵 8 分钟',
+    question: '已上五环，下一步？',
+    options: [
+      { dir: 'E', label: '东行沿北五环', desc: '主干道',   correct: true },
+      { dir: 'S', label: '南下西四环',   desc: '会绕远',   correct: false }
+    ]
+  },
+  {
+    name: '北五环·肖家河',
+    pos: { x: 380, y: 240 },
+    obstacle: '🚦 红灯 30 秒',
+    question: '继续沿北五环？',
+    options: [
+      { dir: 'E', label: '继续东行',   desc: '正确路线',     correct: true },
+      { dir: 'S', label: '南下进市区', desc: '会进二环堵车', correct: false },
+      { dir: 'N', label: '北上上清',   desc: '偏离目的地',   correct: false }
+    ]
+  },
+  {
+    name: '北五环 / S50 路口',
+    pos: { x: 560, y: 240 },
+    obstacle: '🚧 修路绕行',
+    question: '关键路口！怎么转？',
+    options: [
+      { dir: 'E', label: '继续东沿 S50', desc: '没错就这条', correct: true },
+      { dir: 'N', label: '北上 G7',      desc: '回西北旺了', correct: false },
+      { dir: 'S', label: '南下学清路',   desc: '小路慢',     correct: false }
+    ]
+  },
+  {
+    name: 'S50 清河中街',
+    pos: { x: 720, y: 240 },
+    obstacle: '🌧️ 小雨打滑减速',
+    question: '快到了，下匝道往哪？',
+    options: [
+      { dir: 'S', label: '南下下匝道',   desc: '进清河',   correct: true },
+      { dir: 'E', label: '继续 S50 东',  desc: '会过站',   correct: false }
+    ]
+  },
+  {
+    name: '清河 · 双泉堡',
+    pos: { x: 720, y: 380 },
+    obstacle: '🚓 临时检查站',
+    question: '清河区域内，往金融大厦？',
+    options: [
+      { dir: 'E', label: '东行进国家会议', desc: '正确',         correct: true },
+      { dir: 'S', label: '南下中关村',     desc: '偏离了',       correct: false },
+      { dir: 'W', label: '西行上清路',     desc: '反方向',       correct: false }
+    ]
+  },
+  {
+    name: '亚洲金融大厦',
+    pos: { x: 850, y: 420 },
+    obstacle: '🎉 抵达终点！',
+    question: null,
+    options: []
+  }
+];
+
+const DIR_ANGLE = { N: 0, E: 90, S: 180, W: 270, NE: 45, SE: 135, SW: 225, NW: 315 };
+
+/* =========== 游戏状态 =========== */
+let stageIdx = 0;
+let distance = 0;
+let car = { x: ROUTE[0].pos.x, y: ROUTE[0].pos.y, angle: 90 };
+let moving = false;
+
+/* =========== Canvas 渲染 =========== */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// 把整条路线画成 polyline（背景层）
+function drawMap() {
+  ctx.fillStyle = '#0a0d1f';
+  ctx.fillRect(0, 0, 960, 540);
+
+  // 网格背景
+  ctx.strokeStyle = 'rgba(74,85,166,.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 960; i += 30) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 540); ctx.stroke();
+  }
+  for (let j = 0; j < 540; j += 30) {
+    ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(960, j); ctx.stroke();
+  }
+
+  // 已走过的路 (绿色)
+  ctx.strokeStyle = '#06d6a0';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (stageIdx > 0) {
+    ctx.beginPath();
+    ctx.moveTo(ROUTE[0].pos.x, ROUTE[0].pos.y);
+    for (let i = 1; i <= stageIdx; i++) {
+      ctx.lineTo(ROUTE[i].pos.x, ROUTE[i].pos.y);
+    }
+    ctx.stroke();
+  }
+
+  // 未走的路（虚线）
+  ctx.setLineDash([8, 8]);
+  ctx.strokeStyle = 'rgba(255,209,102,.4)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(ROUTE[stageIdx].pos.x, ROUTE[stageIdx].pos.y);
+  for (let i = stageIdx + 1; i < ROUTE.length; i++) {
+    ctx.lineTo(ROUTE[i].pos.x, ROUTE[i].pos.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 节点
+  ROUTE.forEach((node, i) => {
+    const isPassed = i < stageIdx;
+    const isCurrent = i === stageIdx;
+    const isLast = i === ROUTE.length - 1;
+    ctx.beginPath();
+    ctx.arc(node.pos.x, node.pos.y, isCurrent ? 12 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = isPassed ? '#06d6a0' : isCurrent ? '#ffd166' : isLast ? '#ff4d6d' : '#4a55a6';
+    ctx.fill();
+    ctx.strokeStyle = '#0f1224';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 节点名称
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px PingFang SC, sans-serif';
+    ctx.textAlign = i < 2 ? 'left' : i > 4 ? 'right' : 'center';
+    const tx = i < 2 ? node.pos.x + 16 : i > 4 ? node.pos.x - 16 : node.pos.x;
+    const ty = i % 2 === 0 ? node.pos.y - 16 : node.pos.y + 26;
+    ctx.fillText(node.name, tx, ty);
+  });
+
+  // 起点标记
+  ctx.fillStyle = '#06d6a0';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('🚀 起点', ROUTE[0].pos.x - 30, ROUTE[0].pos.y - 24);
+
+  // 终点旗帜
+  const last = ROUTE[ROUTE.length - 1].pos;
+  ctx.fillStyle = '#ff4d6d';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('🏁 小L 在这等', last.x + 20, last.y + 36);
+}
+
+// 画小T的车（像素风格）
+function drawCar() {
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle * Math.PI / 180);
+
+  // 车身阴影
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  ctx.fillRect(-14, -10, 28, 22);
+
+  // 车身（红色酷炫）
+  const grad = ctx.createLinearGradient(-12, 0, 12, 0);
+  grad.addColorStop(0, '#ff4d6d');
+  grad.addColorStop(1, '#ff8fa3');
+  ctx.fillStyle = grad;
+  ctx.fillRect(-12, -8, 24, 18);
+
+  // 车窗
+  ctx.fillStyle = '#1a1d2e';
+  ctx.fillRect(-9, -5, 18, 5);
+
+  // 小T 头（黑短发 + 酷酷形象）
+  ctx.fillStyle = '#fbb';
+  ctx.beginPath();
+  ctx.arc(0, -2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-3, -5, 6, 2);
+
+  // 车头方向指示
+  ctx.fillStyle = '#ffd166';
+  ctx.fillRect(8, -2, 4, 4);
+
+  // 轮子
+  ctx.fillStyle = '#0a0d1f';
+  ctx.fillRect(-12, -10, 4, 3);
+  ctx.fillRect(8, -10, 4, 3);
+  ctx.fillRect(-12, 7, 4, 3);
+  ctx.fillRect(8, 7, 4, 3);
+
+  ctx.restore();
+}
+
+function render() {
+  drawMap();
+  drawCar();
+}
+
+/* =========== 罗盘 =========== */
+function updateCompass(targetIdx) {
+  if (targetIdx >= ROUTE.length) return;
+  const target = ROUTE[targetIdx].pos;
+  const dx = target.x - car.x;
+  const dy = target.y - car.y;
+  const angle = Math.atan2(dx, -dy) * 180 / Math.PI; // N 为 0
+  document.getElementById('needle').style.transform = `rotate(${angle}deg)`;
+}
+
+function compassFlash(red = false) {
+  const c = document.getElementById('compass');
+  c.classList.add('shake');
+  if (red) c.classList.add('red');
+  setTimeout(() => c.classList.remove('shake', 'red'), 600);
+}
+
+/* =========== UI 更新 =========== */
+function renderProgress() {
+  const wrap = document.getElementById('progress');
+  wrap.innerHTML = '';
+  for (let i = 0; i < ROUTE.length - 1; i++) {
+    const d = document.createElement('div');
+    d.className = 'pnode' + (i < stageIdx ? ' done' : i === stageIdx ? ' active' : '');
+    wrap.appendChild(d);
+  }
+  document.getElementById('progressText').textContent = `当前：${ROUTE[stageIdx].name}`;
+  document.getElementById('stage').textContent = `${Math.min(stageIdx + 1, ROUTE.length)}/${ROUTE.length}`;
+}
+
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function showChoice() {
+  const node = ROUTE[stageIdx];
+  if (!node.question) return;
+  document.getElementById('choiceQ').innerHTML =
+    `<span class="where">📍 ${node.name}</span><br>${node.question}`;
+  const btns = document.getElementById('choiceBtns');
+  btns.innerHTML = '';
+  node.options.forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'choice-btn';
+    const arrows = { N: '⬆️', S: '⬇️', E: '➡️', W: '⬅️' };
+    b.innerHTML = `<span class="arrow">${arrows[opt.dir] || '🔄'}</span><span>${opt.label}</span><span class="desc">${opt.desc}</span>`;
+    b.onclick = () => handleChoice(opt);
+    btns.appendChild(b);
+  });
+  document.getElementById('choicePanel').classList.add('show');
+}
+
+function hideChoice() {
+  document.getElementById('choicePanel').classList.remove('show');
+}
+
+/* =========== 选择处理 =========== */
+function handleChoice(opt) {
+  if (moving) return;
+  hideChoice();
+
+  if (!opt.correct) {
+    // 走错：抖罗盘 + 显示小L哭哭
+    compassFlash(true);
+    setTimeout(() => showLostModal(), 400);
+    return;
+  }
+
+  // 走对：开车前进到下一节点
+  moveToNext();
+}
+
+function moveToNext() {
+  if (stageIdx >= ROUTE.length - 1) return;
+  moving = true;
+  const start = { ...car };
+  const target = ROUTE[stageIdx + 1].pos;
+  const segDist = Math.hypot(target.x - start.x, target.y - start.y);
+  const angle = Math.atan2(target.x - start.x, -(target.y - start.y)) * 180 / Math.PI;
+
+  // 显示路障文案
+  const obstacleText = ROUTE[stageIdx + 1].obstacle;
+  showToast(obstacleText);
+
+  let t = 0;
+  const dur = 60;
+  const tick = () => {
+    t++;
+    const p = t / dur;
+    const ease = p < .5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+    car.x = start.x + (target.x - start.x) * ease;
+    car.y = start.y + (target.y - start.y) * ease;
+    car.angle = angle;
+    distance += segDist / dur * 0.02;
+    document.getElementById('distance').textContent = distance.toFixed(1);
+    render();
+    if (t < dur) requestAnimationFrame(tick);
+    else {
+      stageIdx++;
+      moving = false;
+      renderProgress();
+      updateCompass(stageIdx + 1);
+      if (stageIdx === ROUTE.length - 1) {
+        setTimeout(showWinModal, 500);
+      } else {
+        setTimeout(showChoice, 600);
+      }
+    }
+  };
+  tick();
+}
+
+/* =========== 弹窗 =========== */
+function showLostModal() {
+  document.getElementById('modalCard').innerHTML = `
+    <svg class="modal-illust" viewBox="0 0 140 140">
+      <!-- 小L 哭哭 -->
+      <ellipse cx="70" cy="135" rx="40" ry="3" fill="rgba(0,0,0,.3)"/>
+      <!-- 长发 -->
+      <path d="M 35 60 Q 30 110 45 125 L 95 125 Q 110 110 105 60 Q 100 30 70 28 Q 40 30 35 60 Z" fill="#3d2817"/>
+      <!-- 脸 -->
+      <ellipse cx="70" cy="70" rx="26" ry="30" fill="#ffd6c4"/>
+      <!-- 头发刘海 -->
+      <path d="M 44 50 Q 70 35 96 50 Q 90 60 70 58 Q 50 60 44 50 Z" fill="#3d2817"/>
+      <!-- 眼睛（哭） -->
+      <path d="M 55 70 Q 60 65 65 70" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M 75 70 Q 80 65 85 70" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- 眼泪 -->
+      <ellipse cx="58" cy="80" rx="2.5" ry="6" fill="#7ec8ff"/>
+      <ellipse cx="82" cy="80" rx="2.5" ry="6" fill="#7ec8ff"/>
+      <!-- 嘴（哭嘴） -->
+      <path d="M 62 92 Q 70 86 78 92" stroke="#c44" stroke-width="2" fill="#ff8a8a" stroke-linejoin="round"/>
+      <!-- 腮红 -->
+      <circle cx="50" cy="80" r="4" fill="#ffaa9c" opacity=".6"/>
+      <circle cx="90" cy="80" r="4" fill="#ffaa9c" opacity=".6"/>
+    </svg>
+    <div class="modal-title">😢 小L 哭哭</div>
+    <div class="modal-text">"小T~ 你走错路啦，迷路了，找不到我喽……快看看罗盘重新选！"</div>
+    <button class="modal-btn" onclick="closeModal()">重新选择 →</button>
+  `;
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  showChoice();
+}
+
+function showWinModal() {
+  document.getElementById('modalCard').innerHTML = `
+    <svg class="modal-illust" viewBox="0 0 200 140" style="width:200px;">
+      <!-- 背景：亚洲金融大厦 -->
+      <rect x="10" y="20" width="40" height="100" fill="#4a55a6"/>
+      <rect x="14" y="30" width="6" height="6" fill="#ffd166"/>
+      <rect x="24" y="30" width="6" height="6" fill="#ffd166"/>
+      <rect x="34" y="30" width="6" height="6" fill="#ffd166"/>
+      <rect x="14" y="45" width="6" height="6" fill="#ffd166"/>
+      <rect x="24" y="45" width="6" height="6" fill="#ffd166"/>
+      <rect x="34" y="45" width="6" height="6" fill="#ffd166"/>
+      <rect x="14" y="60" width="6" height="6" fill="#ffd166"/>
+      <rect x="34" y="60" width="6" height="6" fill="#ffd166"/>
+      <text x="30" y="135" fill="#fff" font-size="8" text-anchor="middle">亚金大厦</text>
+
+      <!-- 小T 酷酷女孩 -->
+      <g transform="translate(80,60)">
+        <ellipse cx="0" cy="55" rx="15" ry="2" fill="rgba(0,0,0,.3)"/>
+        <!-- 短发 -->
+        <path d="M -12 -5 Q -14 -20 0 -25 Q 14 -20 12 -5 L 10 0 L -10 0 Z" fill="#1a1a1a"/>
+        <!-- 脸 -->
+        <ellipse cx="0" cy="0" rx="11" ry="13" fill="#ffd6c4"/>
+        <!-- 墨镜 -->
+        <rect x="-9" y="-3" width="18" height="5" fill="#222" rx="1"/>
+        <rect x="-7" y="-2" width="6" height="3" fill="#444"/>
+        <rect x="1" y="-2" width="6" height="3" fill="#444"/>
+        <!-- 嘴（笑） -->
+        <path d="M -4 7 Q 0 10 4 7" stroke="#c44" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <!-- 身体 -->
+        <rect x="-10" y="13" width="20" height="25" fill="#ff4d6d" rx="2"/>
+        <!-- 手举✌️ -->
+        <circle cx="-13" cy="18" r="3" fill="#ffd6c4"/>
+        <text x="-13" y="14" font-size="8" text-anchor="middle">✌️</text>
+        <!-- 腿 -->
+        <rect x="-8" y="38" width="6" height="15" fill="#222"/>
+        <rect x="2" y="38" width="6" height="15" fill="#222"/>
+      </g>
+
+      <!-- 小L 长发可爱女孩 -->
+      <g transform="translate(120,60)">
+        <ellipse cx="0" cy="55" rx="15" ry="2" fill="rgba(0,0,0,.3)"/>
+        <!-- 长发 -->
+        <path d="M -13 -5 Q -16 -20 0 -25 Q 16 -20 13 -5 L 14 50 L -14 50 Z" fill="#5a3a1a"/>
+        <!-- 脸 -->
+        <ellipse cx="0" cy="0" rx="11" ry="13" fill="#ffd6c4"/>
+        <!-- 刘海 -->
+        <path d="M -10 -5 Q 0 -12 10 -5 Q 7 0 0 0 Q -7 0 -10 -5 Z" fill="#5a3a1a"/>
+        <!-- 眼睛 -->
+        <path d="M -5 0 Q -3 -3 -1 0" stroke="#222" stroke-width="1.5" fill="none"/>
+        <path d="M 1 0 Q 3 -3 5 0" stroke="#222" stroke-width="1.5" fill="none"/>
+        <!-- 嘴 -->
+        <path d="M -3 7 Q 0 10 3 7" stroke="#c44" stroke-width="1.5" fill="#ff8a8a"/>
+        <!-- 腮红 -->
+        <circle cx="-7" cy="4" r="2" fill="#ffaa9c" opacity=".6"/>
+        <circle cx="7" cy="4" r="2" fill="#ffaa9c" opacity=".6"/>
+        <!-- 身体（连衣裙） -->
+        <path d="M -10 13 L 10 13 L 13 38 L -13 38 Z" fill="#7ec8ff"/>
+        <!-- 手比心 -->
+        <circle cx="13" cy="18" r="3" fill="#ffd6c4"/>
+        <text x="13" y="14" font-size="8" text-anchor="middle">💕</text>
+        <!-- 腿 -->
+        <rect x="-8" y="38" width="6" height="15" fill="#ffd6c4"/>
+        <rect x="2" y="38" width="6" height="15" fill="#ffd6c4"/>
+      </g>
+
+      <!-- 闪光 -->
+      <text x="100" y="20" font-size="14" text-anchor="middle">✨ 📸 ✨</text>
+      <text x="180" y="40" font-size="20" text-anchor="middle">🎉</text>
+      <text x="20" y="40" font-size="20" text-anchor="middle">🎊</text>
+    </svg>
+    <div class="modal-title">🎉 通关！合影留念</div>
+    <div class="modal-text">小T 终于到了亚洲金融大厦，和小L 来了个超棒的合影 📸<br>
+    总里程 <b>${distance.toFixed(1)} km</b> · 一路顺风！</div>
+    <button class="modal-btn" onclick="restart()">再玩一次 🔁</button>
+  `;
+  document.getElementById('modal').classList.add('show');
+}
+
+function restart() {
+  stageIdx = 0;
+  distance = 0;
+  car = { x: ROUTE[0].pos.x, y: ROUTE[0].pos.y, angle: 90 };
+  document.getElementById('modal').classList.remove('show');
+  document.getElementById('distance').textContent = '0.0';
+  renderProgress();
+  updateCompass(1);
+  render();
+  setTimeout(showChoice, 400);
+}
+
+/* =========== 启动 =========== */
+function init() {
+  renderProgress();
+  updateCompass(1);
+  render();
+  setTimeout(showChoice, 600);
+}
+init();
+</script>
+</body>
+</html>
