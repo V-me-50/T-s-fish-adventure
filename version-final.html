@@ -72,8 +72,8 @@
   .parallax-layer { position: absolute; pointer-events: none; width: 200%; left: 0; }
   /* 各层的高度和位置全部精确控制，避免遮挡顶部 UI */
   .layer-clouds { z-index: 2; top: 0; height: 130px; }
-  .layer-far    { z-index: 3; bottom: 90px; height: 200px; }
-  .layer-mid    { z-index: 4; bottom: 88px; height: 240px; }
+  .layer-far    { z-index: 3; bottom: 90px; height: 220px; }
+  .layer-mid    { z-index: 4; bottom: 88px; height: 280px; width: 300%; }
   .layer-near   { z-index: 5; bottom: 88px; height: 130px; }
   .layer-road   { z-index: 6; bottom: 0; height: 90px; }
   .layer-front  { z-index: 7; bottom: 78px; height: 40px; }
@@ -81,12 +81,35 @@
     from { transform: translateX(0); } to { transform: translateX(-50%); }
   }
   .layer-clouds { animation: scroll 80s linear infinite; }
-  .driving .layer-clouds { animation: scroll 30s linear infinite; }
-  .driving .layer-far { animation: scroll 18s linear infinite; }
-  .driving .layer-mid { animation: scroll 14s linear infinite; }
+  /* mid 层专用滚动（width:300% 时移动 -66.67% = 2000px = 2 个屏宽） */
+  @keyframes scrollMid {
+    from { transform: translateX(0); } to { transform: translateX(-66.67%); }
+  }
+  .driving .layer-mid { animation: scrollMid 12s linear infinite; }
+  /* 其他层用原 keyframe */
+  .driving .layer-clouds { animation: scroll 25s linear infinite; }
+  .driving .layer-far { animation: scroll 12s linear infinite; }
   .driving .layer-near { animation: scroll 4s linear infinite; }
-  .driving .layer-road { animation: scroll 1s linear infinite; }
-  .driving .layer-front { animation: scroll 2.5s linear infinite; }
+  .driving .layer-road { animation: scroll 2s linear infinite; }
+  .driving .layer-front { animation: scroll 2.6s linear infinite; }
+
+  /* 打卡时全场暂停（车和背景都不动） */
+  .scene.paused .parallax-layer,
+  .scene.paused .hero-car,
+  .scene.paused .hero-tina-head { animation-play-state: paused !important; }
+  .scene.paused .hero-car svg * { animation-play-state: paused !important; }
+
+  /* 彩虹（雨过天晴） */
+  .rainbow {
+    position: absolute;
+    top: 30px; left: 10%;
+    width: 80%; height: 200px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+    z-index: 3;
+  }
+  .rainbow.show { opacity: 0.85; }
 
   .hero-car {
     position: absolute; left: 50%; bottom: 45px;
@@ -434,6 +457,7 @@
 </style>
 </head>
 <body>
+
 <div class="game-container">
   <div class="topbar">
     <div class="title-block">
@@ -503,6 +527,7 @@
   <div class="modal-card" id="modalCard"></div>
 </div>
 
-<script src="game-logic.js"></script>
+<script src="knockout.js?v=20260605"></script>
+<script src="game-logic.js?v=20260605"></script>
 </body>
 </html>
